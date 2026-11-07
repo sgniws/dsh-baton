@@ -206,7 +206,7 @@ test('an old conversation loaded again after the value was written (a Codex rest
   assert.deepEqual(chain.get(30), { ppid: 20, name: 'node.exe', started: Date.parse('2026-11-01T10:00:05Z') })
   assert.equal(codexProcessStartedAt(30, (p) => chain.get(p) ?? null), Date.parse('2026-11-01T09:00:00Z'))
   assert.equal(processChain(30, '').size, 0)
-  assert.equal(await codexProcessStartedAtAsync(process.pid), null, 'run by the test runner, not Codex')
+  assert.equal(await codexProcessStartedAtAsync(process.pid), codexProcessStartedAt(process.pid), 'async lookup agrees with the process ancestry, including tests launched by Codex')
 
   // Read from the system for this very process (ps, or PowerShell on Windows).
   const me = processInfo(process.pid)

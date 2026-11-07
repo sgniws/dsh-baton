@@ -47,6 +47,8 @@ dsh-baton 是一个 MCP 服务器加一个 Harness 小插件。主 Agent 用一�
 
 插件启用后会为 Claude Code 和 Codex 注册 dsh-baton（对所有文件夹生效），Harness 里会弹出提示。
 
+Codex 还会安装随包提供的 `dsh-baton` skill，在 `~/.agents/skills/dsh-baton` 链接到已安装的插件目录。skill 和 MCP 说明共同约定委派流程：发送任务后长等待，默认由 Harness 独立完成，避免例行进度消息和重复分析；返回完整结果及证据后直接接收，有明确问题再定向核查。用户明确要求时才并行工作。报告和只读任务无需额外编造测试或要求验收子代理。更新插件时 skill 一起更新；`setup --remove` 会移除本插件管理的链接。同名位置已有用户自己的 skill 时会保留，并报告注册冲突。
+
 **2. 新开对话**：在 Claude Code 或 Codex 里**新开**一个对话，之前开着的对话还看不到 dsh-baton。两边步骤一样。Codex 调用 MCP 工具时会请你批准，批准 `dsh-baton` 的工具即可（无人值守的 `codex exec` 加上 `--approve-for-me`）。
 
 **3. 检查**：让它调用 `dsh_list_workspaces`，会列出你的 Harness 工作区。

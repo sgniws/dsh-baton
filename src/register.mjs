@@ -483,7 +483,49 @@ function nodeVersion(bin) {
 // The stable folder the server runs from when it came from a package cache (npx's, or
 // the Harness profile's): those can be cleared or replaced at any time.
 export const appDir = (home = batonHome()) => path.join(home, 'app')
-const APP_PARTS = ['src', 'host', 'patches', 'package.json', 'LICENSE']
+const APP_PARTS = ['src', 'host', 'patches', 'skills', 'package.json', 'LICENSE']
+
+export const codexSkillPath = (home = os.homedir()) => path.join(home, '.agents', 'skills', NAME)
+const skillSource = (root) => path.resolve(root, 'skills', NAME)
+const linkedSkill = (file) => {
+  try {
+    if (fs.lstatSync(file).isSymbolicLink()) return path.resolve(path.dirname(file), fs.readlinkSync(file))
+  } catch (e) { if (e.code !== 'ENOENT') throw e }
+  return null
+}
+
+// The stable app folder keeps the link valid across package updates. Existing user
+// files, directories and links to another skill are left for the user to resolve.
+export function registerCodexSkill(root, home = os.homedir()) {
+  const file = codexSkillPath(home)
+  const source = skillSource(root)
+  if (!fs.existsSync(path.join(source, 'SKILL.md'))) throw new Error(`Bundled Codex skill missing: ${source}`)
+  if (linkedSkill(file) === source) return { state: 'unchanged', path: file }
+  try {
+    fs.lstatSync(file)
+    throw new Error(`Codex skill path already exists; preserved ${file}`)
+  } catch (e) { if (e.code !== 'ENOENT') throw e }
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.symlinkSync(source, file, process.platform === 'win32' ? 'junction' : 'dir')
+  return { state: 'installed', path: file }
+}
+
+export function removeCodexSkill(roots, home = os.homedir()) {
+  const file = codexSkillPath(home)
+  const source = linkedSkill(file)
+  if (source && roots.some((root) => skillSource(root) === source)) {
+    // On Windows a junction may need rmdir; neither operation removes its target.
+    try { fs.unlinkSync(file) } catch (e) {
+      if (process.platform !== 'win32') throw e
+      fs.rmdirSync(file)
+    }
+    return { state: 'removed', path: file }
+  }
+  try { fs.lstatSync(file); return { state: 'kept', path: file } } catch (e) {
+    if (e.code !== 'ENOENT') throw e
+    return { state: 'absent', path: file }
+  }
+}
 
 export function installApp(from, to = appDir()) {
   fs.mkdirSync(to, { recursive: true })
@@ -614,6 +656,13 @@ export function autoRegister({ root, home = os.homedir(), env = process.env, nod
       const c = result.clients.find((x) => x.id === 'codex')
       if (c && c.state !== 'not-installed') Object.assign(c, { state: 'failed', error: `could not update ${codex.file}: ${e.code ?? e.message}` })
     }
+    const codexResult = result.clients.find((c) => c.id === 'codex')
+    if (codexResult && !['not-installed', 'failed'].includes(codexResult.state)) {
+      try { result.codexSkill = registerCodexSkill(serverRoot, home) } catch (e) {
+        result.codexSkill = { state: 'failed', error: e.message }
+        Object.assign(codexResult, { state: 'failed', error: e.message })
+      }
+    }
     // State the hook of 0.6.0–0.6.3 kept that nothing reads any more (pending.json stays:
     // conversations opened before still run the hook, which reads it).
     for (const f of ['registered.json', 'trust-noted.json', 'wanted', 'alive']) {
@@ -630,4 +679,3 @@ export function autoRegister({ root, home = os.homedir(), env = process.env, nod
   }
   return result
 }
-

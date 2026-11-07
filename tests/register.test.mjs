@@ -20,7 +20,7 @@ function sandbox({ claude = true, codex = true } = {}) {
   if (claude) fs.mkdirSync(path.join(home, '.claude'))
   if (codex) fs.mkdirSync(path.join(home, '.codex'))
   const pkg = path.join(dir, 'pkg')
-  for (const part of ['src', 'host', 'package.json']) fs.cpSync(path.join(REPO, part), path.join(pkg, part), { recursive: true })
+  for (const part of ['src', 'host', 'skills', 'package.json']) fs.cpSync(path.join(REPO, part), path.join(pkg, part), { recursive: true })
   const env = { PATH: '' }
   const app = path.join(home, '.dsh-baton', 'app')
   const run = (opts = {}) => autoRegister({ root: pkg, home, env, app, find: () => process.execPath, ...opts })

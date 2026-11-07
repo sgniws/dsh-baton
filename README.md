@@ -47,6 +47,8 @@ Nothing else to install: no Node.js, no terminal. The steps are the same on macO
 
 Switched on, the plugin registers dsh-baton for Claude Code and Codex, for every folder, and Harness says so.
 
+For Codex it also installs the bundled `dsh-baton` skill at `~/.agents/skills/dsh-baton`, linked to the installed package. The skill and MCP instructions keep delegated work in Harness: send once, wait without routine progress messages or duplicate analysis, and accept a complete result with its evidence. Work in parallel only when you ask for it. Report and read-only tasks need no invented tests or review table. Plugin updates update the skill too; `setup --remove` removes its managed link. An existing skill at that path is preserved and reported as a registration error.
+
 **2. Open a new chat:** in Claude Code or Codex, start a **new** conversation; one that was already open does not see dsh-baton yet. The steps are the same for both. Codex asks you to approve MCP tool calls: approve the `dsh-baton` tools (for unattended `codex exec` runs, add `--approve-for-me`).
 
 **3. Check:** ask it to call `dsh_list_workspaces`. It lists your Harness workspaces.

@@ -185,11 +185,9 @@ test('Claude Code gets a background wait_command; Codex, which cannot be woken b
   assert.match(codex.sent.hint, /Call dsh_wait/)
   assert.match(codex.sent.hint, /dsh_session_activity/)
   assert.match(codex.sent.hint, /must start with the line \/\/ @exec: \{"yield_time_ms": 290000\}/)
-  assert.match(codex.sent.hint, /do not check how the run is going: no dsh_status, dsh_session_activity or dsh_read_session/)
-  // Work the user asked for meanwhile is not forbidden with the polling (a user asked Codex
-  // to analyse while it waited, and the old wording kept it from doing so).
-  assert.match(codex.sent.hint, /Work the user asked you to do meanwhile is different and allowed: reading, reviewing or analysing the project, the target folder included, while dsh_wait runs, without editing files the run may change/)
-  assert.doesNotMatch(codex.sent.hint, /do not (?:list|read|look in) the target folder/)
+  assert.match(codex.sent.hint, /No dsh_status, dsh_session_activity, dsh_read_session, shell\/CLI polling/)
+  assert.match(codex.sent.hint, /do not duplicate the delegated analysis, reread task files, or send routine progress notes/)
+  assert.match(codex.sent.hint, /Work alongside Harness only when the user explicitly requests parallel work/)
   assert.match(codex.sent.hint, /call yield_control\(\) right after starting dsh_wait/)
   assert.equal(codex.instructions, claude.instructions, 'one short sentence for every client; the rules are in the tools')
 })
