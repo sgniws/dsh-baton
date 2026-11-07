@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { ROOT, VERSION, config, hostAvailable, hostVersionSeen as versionOfHost, versionWarning } from './core.mjs'
-import { appDir, installApp, rewrite, stableNodePath, claudeConfigPath, codexConfigPath, editClaudeConfig, editCodexConfig, removeCodexHookBlock, noteCodexToolTimeout, readCodexToolTimeout } from './register.mjs'
+import { appDir, installApp, rewrite, stableNodePath, claudeConfigPath, codexConfigPath, editClaudeConfig, editCodexConfig, removeCodexHookBlock, noteCodexToolTimeout, readCodexToolTimeout, registerCodexSkill, removeCodexSkill } from './register.mjs'
 
 export { appDir, installApp, stableNodePath, claudeConfigPath, codexConfigPath, editClaudeConfig, editCodexConfig }
 
@@ -128,6 +128,15 @@ export async function setup({ remove = false } = {}) {
   const hadTimeout = fs.existsSync(codexFile) && readCodexToolTimeout(fs.readFileSync(codexFile, 'utf8')) !== null
   register('Codex', codexFile, fs.existsSync(path.dirname(codexFile)), editCodexConfig)
   if (!remove && fs.existsSync(codexFile)) noteCodexToolTimeout(codexFile, undefined, undefined, !hadTimeout)
+  if (remove || fs.existsSync(codexFile)) {
+    try {
+      const skill = remove ? removeCodexSkill([root, appDir()]) : registerCodexSkill(root)
+      lines.push(`- Codex skill: ${skill.state} at ${skill.path}`)
+    } catch (e) {
+      lines.push(`- Codex skill: FAILED: ${e.message}`)
+      process.exitCode = 1
+    }
+  }
   // The Codex Stop hook plugins 0.6.0–0.6.3 added goes too, as the plugin takes it out.
   if (fs.existsSync(codexFile)) {
     try {

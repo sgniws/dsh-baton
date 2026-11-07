@@ -33,6 +33,7 @@ test('instructions are one short sentence; the catalogue Codex builds stays unde
   const { instructions } = await listTools('codex-mcp-client')
   assert.ok(instructions.length <= 120, `instructions: ${instructions.length} chars`)
   assert.match(instructions, /dsh_send/)
+  assert.match(instructions, /Harness work independently.*dsh_wait.*accept completed evidence/)
   const size = await codexCatalog(MCP)
   assert.ok(size.total < 24283 / 2, `Codex catalogue: ${size.total} chars`)
 })

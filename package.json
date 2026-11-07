@@ -10,6 +10,7 @@
   },
   "files": [
     "src",
+    "skills",
     "host/lib",
     "host/package.json",
     "host/cordis.patch.yml",

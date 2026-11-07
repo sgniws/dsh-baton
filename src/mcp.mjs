@@ -74,8 +74,8 @@ const codeModeYield = () => {
 // Not "no calls at all": a model told only that kept waiting on the old request after the
 // user added to it, and sent the change once the old run had finished. Nor "no reading":
 // that overrode a user who asked Codex to analyse the project while Harness worked.
-const NO_POLL = 'While waiting, do not check how the run is going: no dsh_status, dsh_session_activity or dsh_read_session, and no looking for its output or logs. Work the user asked you to do meanwhile is different and allowed: reading, reviewing or analysing the project, the target folder included, while dsh_wait runs, without editing files the run may change. If the user adds to or changes the request while you wait, send it at once with dsh_send mode steer and the same session_id (it joins the running turn), then dsh_wait the new run_id instead of the old one: both end together with one result.'
-const INSTRUCTIONS = 'Hands tasks to a local DeepSeek Harness and brings the results back: start with dsh_send.'
+const NO_POLL = 'Let Harness work independently. While waiting, do not duplicate the delegated analysis, reread task files, or send routine progress notes. No dsh_status, dsh_session_activity, dsh_read_session, shell/CLI polling, or output/log inspection. Work alongside Harness only when the user explicitly requests parallel work. If the user changes the request, send it at once with dsh_send mode steer and the same session_id, then dsh_wait the new run_id; both end together.'
+const INSTRUCTIONS = 'Delegate with dsh_send; let Harness work independently, wait with dsh_wait, then accept completed evidence.'
 const ARCHIVED = 'Sessions not in dsh_list_sessions are archived or gone: do not look for them on disk.'
 // A shell command that blocks until a run ends and prints its reply. Run in the
 // background by a client that wakes the model when the command exits (Claude Code),
