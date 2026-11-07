@@ -7,7 +7,7 @@ description: Delegate work to DeepSeek Harness when the user asks to hand a task
 
 Send a self-contained task with `dsh_send`: include the user's requirements, working folder, permitted changes, deliverable, and completion criteria. Harness does not see this conversation. Preserve the user's model choice and permission boundaries. For code changes, include the project's relevant checks when known; document and read-only tasks need no invented test commands.
 
-After sending, let Harness perform the delegated work independently. Call `dsh_wait` and keep that call pending using the long script-cell yield specified by the tool. A timed-out wait is continued with the same run ID. Avoid short shell waits, CLI polling, and repeated model wake-ups.
+After sending, let Harness perform the delegated work independently. Call `dsh_wait` and keep that call pending using the script-cell yield specified by the tool. Each wait lasts at most 15 minutes and returns early when Harness completes or needs user input. If 15 minutes pass without completion, use the returned status and call `dsh_wait` again with the same run ID (or session ID and returned cursor when following a session). Avoid extra status calls, short shell waits, CLI polling, and model wake-ups between these waits.
 
 While waiting, do not query status, read the session or logs, reread task materials, duplicate the analysis, or generate routine progress reports. Work alongside Harness only when the user explicitly requests parallel work. If the user changes the task, steer the new requirement into the same session and wait on the returned run ID. Surface a genuine request for user input or an external blocker when it arrives; delegation does not authorize new approvals.
 

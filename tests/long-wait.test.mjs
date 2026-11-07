@@ -1,5 +1,5 @@
-// One dsh_wait for Codex lasts as long as Codex's tool_timeout_sec for dsh-baton allows
-// (less a margin), and a call the client cancels stops waiting and gets no reply.
+// One dsh_wait for Codex lasts at most 15 minutes, within its tool_timeout_sec less a
+// margin, and a call the client cancels stops waiting and gets no reply.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -49,15 +49,15 @@ async function waitDescription(codexHome, clientName) {
   return r.result.tools.find((t) => t.name === 'dsh_wait').description
 }
 
-test('Codex waits up to its dsh-baton tool_timeout_sec less 60 s; 270 s without one; other clients 50 s', async () => {
+test('Codex caps waits at 900 s within its tool timeout; 270 s without one; other clients 50 s', async () => {
   const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dshb-lw-'))
   try {
     assert.match(await waitDescription(codexHome), /waits up to 270 s/)
     fs.writeFileSync(path.join(codexHome, 'config.toml'), "[mcp_servers.other]\ntool_timeout_sec = 9000\n\n[mcp_servers.dsh-baton]\ncommand = '/n'\nargs = ['/s']\ntool_timeout_sec = 3600\n")
     const long = await waitDescription(codexHome)
-    assert.match(long, /waits up to 3540 s/)
+    assert.match(long, /waits up to 900 s/)
     assert.match(long, /270 s in a conversation that was already open/)
-    assert.match(long, /"yield_time_ms": 3560000/)
+    assert.match(long, /"yield_time_ms": 920000/)
     fs.writeFileSync(path.join(codexHome, 'config.toml'), "[mcp_servers.dsh-baton]\ncommand = '/n'\nargs = ['/s']\ntool_timeout_sec = 120\n")
     const short = await waitDescription(codexHome)
     assert.match(short, /waits up to 90 s/, 'a timeout too short for the long wait: kept under it, less 30 s')
@@ -96,6 +96,70 @@ test('a cancelled dsh_wait stops asking the plugin and sends no reply; other cal
     assert.equal(s.replies.has(3), false, 'no reply to the cancelled call')
   } finally {
     // A failed assertion leaves the wait running, and the server would hold on until it ends.
+    await s.kill()
+    server.close()
+    rm(dir)
+  }
+})
+
+test('a larger wait override stays capped at 900 s and completion returns before the deadline', async () => {
+  const { socketEndpoint } = await import('../host/lib/socket.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dshb-lw-'))
+  const sock = path.join(dir, 'h.sock')
+  const server = net.createServer((c) => c.on('data', (d) => {
+    const req = JSON.parse(String(d).split('\n')[0])
+    setTimeout(() => c.end(JSON.stringify({ id: req.id, result: { run_id: req.params.run_id, state: 'completed', final_text: 'report ready' } }) + '\n'), 250)
+  }))
+  await new Promise((r) => server.listen(socketEndpoint(sock), r))
+  const s = start({ CODEX_HOME: dir, DSH_BATON_SOCKET: sock, DSH_BATON_HOME: dir, DSH_BATON_WAIT_S: '3600' })
+  try {
+    await s.reply(1)
+    s.send({ id: 2, method: 'tools/list' })
+    const listed = await s.reply(2)
+    assert.match(listed.result.tools.find((t) => t.name === 'dsh_wait').description, /waits up to 900 s/)
+    s.send({ id: 3, method: 'tools/call', params: { name: 'dsh_wait', arguments: { run_id: 'hrun-early' } } })
+    const reply = await s.reply(3, 3000)
+    assert.ok(reply, 'completion wakes the pending 15-minute wait within three seconds')
+    const result = JSON.parse(reply.result.content[0].text)
+    assert.equal(result.state, 'completed')
+    assert.equal(result.final_text, 'report ready')
+    assert.equal(result.timed_out, undefined)
+  } finally {
+    await s.kill()
+    server.close()
+    rm(dir)
+  }
+})
+
+test('after a timeout the same run can be waited on again and returns its completed result', async () => {
+  const { socketEndpoint } = await import('../host/lib/socket.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dshb-lw-'))
+  const sock = path.join(dir, 'h.sock')
+  const runIds = []
+  let finished = false
+  const server = net.createServer((c) => c.on('data', (d) => {
+    const req = JSON.parse(String(d).split('\n')[0])
+    runIds.push(req.params.run_id)
+    const result = finished
+      ? { run_id: req.params.run_id, state: 'completed', final_text: 'done' }
+      : { run_id: req.params.run_id, state: 'running', timed_out: true }
+    setTimeout(() => c.end(JSON.stringify({ id: req.id, result }) + '\n'), finished ? 50 : 1050)
+  }))
+  await new Promise((r) => server.listen(socketEndpoint(sock), r))
+  const s = start({ CODEX_HOME: dir, DSH_BATON_SOCKET: sock, DSH_BATON_HOME: dir, DSH_BATON_WAIT_S: '1' })
+  try {
+    await s.reply(1)
+    s.send({ id: 2, method: 'tools/call', params: { name: 'dsh_wait', arguments: { run_id: 'hrun-retry' } } })
+    const first = JSON.parse((await s.reply(2)).result.content[0].text)
+    assert.equal(first.timed_out, true)
+    assert.equal(first.state, 'running')
+    finished = true
+    s.send({ id: 3, method: 'tools/call', params: { name: 'dsh_wait', arguments: { run_id: 'hrun-retry' } } })
+    const second = JSON.parse((await s.reply(3)).result.content[0].text)
+    assert.equal(second.state, 'completed')
+    assert.equal(second.final_text, 'done')
+    assert.deepEqual(runIds, ['hrun-retry', 'hrun-retry'])
+  } finally {
     await s.kill()
     server.close()
     rm(dir)
@@ -171,10 +235,11 @@ test('a conversation started after tool_timeout_sec was written waits long; an o
   assert.equal(threadStartedAt('not-a-uuid'), null)
   assert.equal(threadStartedAt('01a18e43-ef83-4561-a6aa-f15eea378837'), null, 'only v7 ids carry a time')
   const t = { value: 3600, since: 1000 }
-  assert.equal(codexWaitSeconds(t, 2000), 3540)
+  assert.equal(codexWaitSeconds(t, 2000), 900)
   assert.equal(codexWaitSeconds(t, 500), 270, 'opened before the value: Codex still stops it at 300 s')
   assert.equal(codexWaitSeconds(t, null), 270, 'no thread id: the safe length')
-  assert.equal(codexWaitSeconds(t, undefined), 3540, 'a description: what a new conversation gets')
+  assert.equal(codexWaitSeconds(t, undefined), 900, 'a description: what a new conversation gets')
+  assert.equal(codexWaitSeconds({ value: 86400, since: 1000 }, 2000), 900, 'a larger tool timeout still caps the wait at 15 minutes')
   assert.equal(codexWaitSeconds({ value: null, since: 1 }, 2000), 270)
   assert.equal(codexWaitSeconds({ value: 300, since: 1 }, 2000), 270, 'too short for a margin')
   assert.equal(codexWaitSeconds({ value: 120, since: 1 }, 2000), 90, 'a short value of the user\'s own: under it')
@@ -182,7 +247,7 @@ test('a conversation started after tool_timeout_sec was written waits long; an o
   assert.equal(codexWaitSeconds({ value: 5, since: 1 }, 2000), 2, 'never above the value itself')
   // Opened while the user's earlier short value held: kept under that one.
   assert.equal(codexWaitSeconds({ value: 3600, since: 1000, prev: 120 }, 500), 90)
-  assert.equal(codexWaitSeconds({ value: 3600, since: 1000, prev: 120 }, 2000), 3540)
+  assert.equal(codexWaitSeconds({ value: 3600, since: 1000, prev: 120 }, 2000), 900)
   assert.equal(codexWaitSeconds({ value: 3600, since: 1000, prev: null }, 500), 270)
 })
 

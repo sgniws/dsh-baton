@@ -214,7 +214,7 @@ test('dsh_wait length is chosen per client, and DSH_BATON_WAIT_S overrides it', 
   assert.match(claude, /up to 50 s/)
   assert.match(claude, /wait_command/)
   assert.doesNotMatch(claude, /yield_time_ms/)
-  assert.match(await run({ DSH_BATON_WAIT_S: '1740' }, 'codex-mcp-client'), /up to 1740 s/)
+  assert.match(await run({ DSH_BATON_WAIT_S: '1740' }, 'codex-mcp-client'), /up to 900 s/)
   assert.match(await run({ DSH_BATON_WAIT_S: 'nope' }, 'codex-mcp-client'), /up to 270 s/)
   fs.rmSync(codexHome, { recursive: true, force: true })
 })

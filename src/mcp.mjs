@@ -18,10 +18,10 @@ const int = (description, d) => ({ type: 'integer', description, default: d })
 // How long one dsh_wait call waits, chosen by the server so it always ends before the
 // client gives up on the tool call: Codex stops a call after its tool_timeout_sec for
 // dsh-baton (an hour as dsh-baton registers it; 300 s when unset), so it gets that less
-// 60 s, or 270 s; other clients get 50 s (Claude Code waits with wait_command instead).
-// DSH_BATON_WAIT_S overrides it. A timeout_s from the model is ignored, so a model cannot
-// pick a short wait and poll.
-const MAX_WAIT_S = 24 * 3600
+// 60 s capped at 15 minutes, or 270 s; other clients get 50 s (Claude Code waits with
+// wait_command instead). DSH_BATON_WAIT_S overrides it within the same 15-minute cap.
+// A timeout_s from the model is ignored, so a model cannot pick a short wait and poll.
+const MAX_WAIT_S = 15 * 60
 const envWait = Math.floor(Number(core.setting('WAIT_S')))
 const isCodex = () => core.senderOf(clientName) === 'codex'
 let codexTimeout = { mtime: null, value: null }
@@ -131,7 +131,7 @@ async function waitInChunks({ run_id }, progress, signal, meta) {
 // Following a session's goal (dsh_wait with session_id). Codex sees a message the user types
 // only once the tool call returns, so one call waits at most 15 minutes; it then returns
 // timed_out with the same cursor and Codex simply calls again.
-const FOLLOW_MAX_S = 900
+const FOLLOW_MAX_S = MAX_WAIT_S
 const FOLLOW_CHUNK_S = 30
 async function followInChunks({ session_id, until = 'goal', cursor, every_minutes = 10, since_ms, max_s = FOLLOW_MAX_S }, progress, signal, meta) {
   if (isCodex()) await lookUpCodexStart()

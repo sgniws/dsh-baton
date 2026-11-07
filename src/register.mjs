@@ -44,8 +44,7 @@ const OWN_TABLE = /^\s*\[\s*mcp_servers\s*\.\s*(["']?)dsh-(?:baton|bridge)\1\s*(
 const ANY_TABLE = /^\s*\[/
 
 // Codex stops an MCP tool call after 300 s unless the server's table sets tool_timeout_sec.
-// dsh-baton sets an hour, so one dsh_wait waits up to about that long: one model request
-// per hour of a run instead of one every 270 s.
+// dsh-baton sets an hour for transport headroom; each dsh_wait is capped at 15 minutes.
 export const CODEX_TOOL_TIMEOUT_S = 3600
 const TIMEOUT_KEY = /^\s*(["']?)tool_timeout_sec\1\s*=\s*([\d_.]+)\s*(?:#.*)?$/
 const HAS_TIMEOUT = /^\s*(["']?)tool_timeout_sec\1\s*=/
@@ -130,7 +129,7 @@ export function noteCodexToolTimeout(file, env = process.env, home = os.homedir(
   } catch { /* no note: the server goes by the config file's time */ }
 }
 
-// How long one Codex dsh_wait may wait: tool_timeout_sec less 60 s for a conversation that
+// How long one Codex dsh_wait may wait: at most 900 s, within tool_timeout_sec less 60 s for a conversation that
 // read the config after the value was written (started: see codexConfigReadAt), else 270 s,
 // under Codex's default 300 s, or under the value before when the user had set one. A value
 // too short for the long wait (the user's own) is kept under, less 30 s (half, under a
@@ -207,7 +206,7 @@ export function processChain(pid, out) {
 }
 const shortWait = (value) => (!value ? 270 : value > 60 ? Math.min(270, Math.floor(value - 30)) : Math.max(1, Math.floor(value / 2)))
 export function codexWaitSeconds({ value, since, prev = null }, started) {
-  const long = value && value - 60 > 270 ? Math.min(Math.floor(value - 60), 24 * 3600) : null
+  const long = value && value - 60 > 270 ? Math.min(Math.floor(value - 60), 15 * 60) : null
   const now = long ?? shortWait(value)
   if (started === undefined) return now
   // Opened before the value was written: Codex still holds it to the one before.
